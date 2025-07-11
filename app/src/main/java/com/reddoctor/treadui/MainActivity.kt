@@ -41,9 +41,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.reddoctor.treadui.data.AppListConfig
+import com.reddoctor.treadui.data.AppInfo
 import com.reddoctor.treadui.data.GameConfig
 import com.reddoctor.treadui.data.ThreadConfig
 import com.reddoctor.treadui.ui.components.AddGameDialog
+import com.reddoctor.treadui.ui.components.AppSelectorDialog
 import com.reddoctor.treadui.ui.components.BatchDeleteDialog
 import com.reddoctor.treadui.ui.components.DeleteConfirmationDialog
 import com.reddoctor.treadui.ui.components.GameEditDialog

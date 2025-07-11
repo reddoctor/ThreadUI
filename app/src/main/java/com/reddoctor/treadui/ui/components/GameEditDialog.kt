@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.reddoctor.treadui.data.AppInfo
 import com.reddoctor.treadui.data.GameConfig
 import com.reddoctor.treadui.data.ThreadConfig
 
@@ -331,6 +333,7 @@ fun AddGameDialog(
     var packageName by remember { mutableStateOf("") }
     var threadConfigs by remember { mutableStateOf(listOf<ThreadConfig>()) }
     var showAddThreadDialog by remember { mutableStateOf(false) }
+    var showAppSelector by remember { mutableStateOf(false) }
     
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -345,6 +348,47 @@ fun AddGameDialog(
                 Text(
                     text = "新增游戏配置",
                     style = MaterialTheme.typography.headlineSmall
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 应用选择按钮
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showAppSelector = true },
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.AccountBox,
+                            contentDescription = "从应用列表选择",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "从应用列表选择",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "或手动输入",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -453,6 +497,18 @@ fun AddGameDialog(
                 }
             }
         }
+    }
+    
+    // 应用选择器对话框
+    if (showAppSelector) {
+        AppSelectorDialog(
+            onDismiss = { showAppSelector = false },
+            onAppSelected = { app ->
+                gameName = app.displayName
+                packageName = app.packageName
+                showAppSelector = false
+            }
+        )
     }
     
     // 添加线程配置对话框
