@@ -79,4 +79,13 @@ object RootUtils {
         val result = executeRootCommand("test -f '$filePath' && echo 'exists' || echo 'not_exists'")
         return result.getOrNull()?.trim() == "exists"
     }
+    
+    fun directoryExistsAsRoot(dirPath: String): Boolean {
+        val result = executeRootCommand("test -d '$dirPath' && echo 'exists' || echo 'not_exists'")
+        return result.getOrNull()?.trim() == "exists"
+    }
+    
+    fun checkAppOptModuleExists(): Boolean {
+        return directoryExistsAsRoot("/data/adb/modules/AppOpt")
+    }
 }

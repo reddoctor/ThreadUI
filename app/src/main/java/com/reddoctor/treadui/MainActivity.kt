@@ -4,10 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -19,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -63,6 +66,7 @@ fun AppListConfigScreen() {
     var selectedGame by remember { mutableStateOf<GameConfig?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
+    var isModuleInstalled by remember { mutableStateOf(true) }
     
     val scope = rememberCoroutineScope()
     val configPath = "/data/adb/modules/AppOpt/applist.conf"
@@ -79,11 +83,17 @@ fun AppListConfigScreen() {
         }
     }
     
-    // 检查root权限
+    // 检查root权限和模块安装状态
     LaunchedEffect(Unit) {
         scope.launch {
             isRootAvailable = withContext(Dispatchers.IO) {
                 RootUtils.isRootAvailable()
+            }
+            
+            if (isRootAvailable) {
+                isModuleInstalled = withContext(Dispatchers.IO) {
+                    RootUtils.checkAppOptModuleExists()
+                }
             }
         }
     }
@@ -204,37 +214,19 @@ fun AppListConfigScreen() {
         ) {
             when {
                 !isRootAvailable -> {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                Icons.Default.Warning,
-                                contentDescription = "警告",
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                "需要Root权限",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.error,
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
-                                "此应用需要Root权限来访问系统配置文件",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                textAlign = TextAlign.Center
-                            )
+                    RootPermissionRequiredCard()
+                }
+                
+                !isModuleInstalled -> {
+                    ModuleInstallationRequiredCard(
+                        onRefreshClick = {
+                            scope.launch {
+                                isModuleInstalled = withContext(Dispatchers.IO) {
+                                    RootUtils.checkAppOptModuleExists()
+                                }
+                            }
                         }
-                    }
+                    )
                 }
                 
                 isLoading -> {
@@ -250,35 +242,62 @@ fun AppListConfigScreen() {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                            .padding(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                Icons.Default.Warning,
-                                contentDescription = "错误",
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(48.dp)
+                            Card(
+                                modifier = Modifier.size(80.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+                                ),
+                                shape = RoundedCornerShape(40.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Warning,
+                                        contentDescription = "错误",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "错误",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                "错误",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.error,
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
                                 errorMessage!!,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                                 textAlign = TextAlign.Center
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(onClick = { loadConfig() }) {
-                                Text("重试")
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Button(
+                                onClick = { loadConfig() },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.height(48.dp)
+                            ) {
+                                Text(
+                                    "重试",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }
@@ -288,17 +307,49 @@ fun AppListConfigScreen() {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(16.dp),
+                            .padding(24.dp),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        Card(
+                            modifier = Modifier.size(100.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            ),
+                            shape = RoundedCornerShape(50.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Refresh,
+                                    contentDescription = "刷新",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
                         Text(
                             "点击刷新按钮加载配置文件",
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { loadConfig() }) {
-                            Text("加载配置")
+                        Spacer(modifier = Modifier.height(32.dp))
+                        Button(
+                            onClick = { loadConfig() },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .height(56.dp)
+                                .fillMaxWidth(0.6f)
+                        ) {
+                            Text(
+                                "加载配置",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
@@ -327,20 +378,35 @@ fun AppListConfigScreen() {
                         
                         // 搜索结果统计
                         if (isSearching && searchQuery.isNotEmpty()) {
+                            // 搜索结果统计
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 8.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                shape = RoundedCornerShape(12.dp)
                             ) {
-                                Text(
-                                    text = "找到 ${filteredGames.size} 个匹配的游戏",
-                                    modifier = Modifier.padding(12.dp),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Search,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "找到 ${filteredGames.size} 个匹配的游戏",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                         
@@ -349,33 +415,52 @@ fun AppListConfigScreen() {
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
+                                    .padding(24.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                                shape = RoundedCornerShape(16.dp)
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(24.dp),
+                                    modifier = Modifier.padding(40.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Icon(
-                                        Icons.Default.Search,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    Card(
+                                        modifier = Modifier.size(80.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                        ),
+                                        shape = RoundedCornerShape(40.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Search,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(40.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "未找到匹配的游戏",
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        fontWeight = FontWeight.Bold
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "未找到匹配的游戏",
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Text(
                                         text = "尝试搜索游戏名称或包名",
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                             }
@@ -447,99 +532,165 @@ fun GameConfigCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .padding(vertical = 6.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(20.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 游戏名称 - 支持搜索高亮
-                if (searchQuery.isNotEmpty() && game.name.contains(searchQuery, ignoreCase = true)) {
-                    HighlightedText(
-                        text = game.name,
-                        searchQuery = searchQuery,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                } else {
-                    Text(
-                        text = game.name,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                TextButton(onClick = onEditClick) {
-                    Text("编辑")
-                }
-            }
-            
-            // 包名 - 支持搜索高亮
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (searchQuery.isNotEmpty() && game.packageName.contains(searchQuery, ignoreCase = true)) {
-                    HighlightedText(
-                        text = "包名: ${game.packageName}",
-                        searchQuery = searchQuery,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    Text(
-                        text = "包名: ${game.packageName}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // 游戏名称 - 支持搜索高亮
+                    if (searchQuery.isNotEmpty() && game.name.contains(searchQuery, ignoreCase = true)) {
+                        HighlightedText(
+                            text = game.name,
+                            searchQuery = searchQuery,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    } else {
+                        Text(
+                            text = game.name,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    // 包名 - 支持搜索高亮
+                    if (searchQuery.isNotEmpty() && game.packageName.contains(searchQuery, ignoreCase = true)) {
+                        HighlightedText(
+                            text = game.packageName,
+                            searchQuery = searchQuery,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = game.packageName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 
-                // 如果是渠道服（游戏名包含包名标识），显示提示
-                if (game.name.contains(" (") && game.name.endsWith(")")) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = MaterialTheme.shapes.extraSmall
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 如果是渠道服（游戏名包含包名标识），显示提示
+                    if (game.name.contains(" (") && game.name.endsWith(")")) {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "渠道服",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
+                    
+                    Button(
+                        onClick = onEditClick,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.height(40.dp)
                     ) {
                         Text(
-                            text = "渠道服",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            "编辑",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
-            Text(
-                text = "线程配置:",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
-            )
+            // 线程配置标题
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Card(
+                    modifier = Modifier.size(6.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ),
+                    shape = RoundedCornerShape(3.dp)
+                ) {}
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "线程配置",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
             
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 线程配置列表
             game.threadConfigs.forEach { threadConfig ->
-                Row(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(vertical = 3.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text(
-                        text = threadConfig.threadName,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = "CPU核心: ${threadConfig.cpuCores}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = threadConfig.threadName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                        
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "CPU: ${threadConfig.cpuCores}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -669,23 +820,21 @@ fun HighlightedText(
 // 获取快捷搜索标签
 fun getQuickSearchTags(games: List<GameConfig>): List<String> {
     val tags = mutableSetOf<String>()
-    
-    // 添加常见的公司/开发商标签
-    games.forEach { game ->
-        when {
-            game.packageName.contains("tencent") -> tags.add("腾讯")
-            game.packageName.contains("mihoyo") -> tags.add("米哈游")
-            game.packageName.contains("netease") -> tags.add("网易")
-            game.packageName.contains("com.supercell") -> tags.add("超级细胞")
-            game.packageName.contains("com.roblox") -> tags.add("Roblox")
-        }
-    }
-    
-    // 添加游戏类型标签
-    if (games.any { it.name.contains("王者") || it.name.contains("MOBA") }) tags.add("MOBA")
-    if (games.any { it.name.contains("吃鸡") || it.name.contains("和平精英") || it.name.contains("绝地求生") }) tags.add("射击")
-    if (games.any { it.name.contains("角色扮演") || it.name.contains("RPG") }) tags.add("RPG")
-    
+
+//    // 添加常见的公司/开发商标签
+//    games.forEach { game ->
+//        when {
+//            game.packageName.contains("tencent") -> tags.add("腾讯")
+//            game.packageName.contains("miHoYo") -> tags.add("米哈游")
+//            game.packageName.contains("netease") -> tags.add("网易")
+//        }
+//    }
+//
+//    // 添加游戏类型标签
+//    if (games.any { it.name.contains("王者") || it.name.contains("MOBA") }) tags.add("MOBA")
+//    if (games.any { it.name.contains("吃鸡") || it.name.contains("和平精英") || it.name.contains("绝地求生") }) tags.add("射击")
+//    if (games.any { it.name.contains("角色扮演") || it.name.contains("RPG") }) tags.add("RPG")
+//
     return tags.take(5) // 限制最多5个标签
 }
 
@@ -695,16 +844,224 @@ fun QuickSearchChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    AssistChip(
-        onClick = onClick,
-        label = { Text(text) },
-        modifier = modifier,
-        leadingIcon = {
+    Card(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Icon(
                 Icons.Default.Search,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Medium
             )
         }
-    )
+    }
+}
+
+@Composable
+fun RootPermissionRequiredCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Card(
+                modifier = Modifier.size(80.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(40.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = "警告",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "需要Root权限",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "此应用需要Root权限来访问系统配置文件",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+fun ModuleInstallationRequiredCard(
+    onRefreshClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Card(
+                modifier = Modifier.size(80.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(40.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "安装",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "需要安装线程优化模块",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "未找到 AppOpt 模块，请先安装线程优化模块",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Text(
+                        "安装步骤：",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    val steps = listOf(
+                        "1. 确保设备已获取 Root 权限",
+                        "2. 安装 LSPosed 框架",
+                        "3. 下载 AppOpt 线程优化模块",
+                        "4. 在 LSPosed 中激活模块",
+                        "5. 重启设备后点击下方刷新按钮"
+                    )
+                    
+                    steps.forEach { step ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Card(
+                                modifier = Modifier.size(6.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                ),
+                                shape = RoundedCornerShape(3.dp)
+                            ) {}
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = step,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Button(
+                onClick = onRefreshClick,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .height(56.dp)
+                    .fillMaxWidth(0.6f)
+            ) {
+                Icon(
+                    Icons.Default.Refresh,
+                    contentDescription = "刷新",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "检查模块状态",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
 }
