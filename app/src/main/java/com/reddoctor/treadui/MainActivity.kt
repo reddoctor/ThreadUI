@@ -1009,9 +1009,9 @@ fun ModuleInstallationRequiredCard(
                     
                     val steps = listOf(
                         "1. 确保设备已获取 Root 权限",
-                        "2. 安装 LSPosed 框架",
+                        "2. 安装 Magisk 框架",
                         "3. 下载 AppOpt 线程优化模块",
-                        "4. 在 LSPosed 中激活模块",
+                        "4. 在 Magisk 中激活模块",
                         "5. 重启设备后点击下方刷新按钮"
                     )
                     
