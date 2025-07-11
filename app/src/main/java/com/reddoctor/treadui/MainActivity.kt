@@ -4,6 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,8 +17,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -35,9 +44,15 @@ import com.reddoctor.treadui.data.AppListConfig
 import com.reddoctor.treadui.data.GameConfig
 import com.reddoctor.treadui.data.ThreadConfig
 import com.reddoctor.treadui.ui.components.AddGameDialog
+import com.reddoctor.treadui.ui.components.BatchDeleteDialog
+import com.reddoctor.treadui.ui.components.DeleteConfirmationDialog
 import com.reddoctor.treadui.ui.components.GameEditDialog
+import com.reddoctor.treadui.ui.components.ImportDialog
+import com.reddoctor.treadui.ui.components.ShareDialog
 import com.reddoctor.treadui.ui.theme.TreadUITheme
+import com.reddoctor.treadui.utils.ImportUtils
 import com.reddoctor.treadui.utils.RootUtils
+import com.reddoctor.treadui.utils.ShareUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -57,12 +72,17 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppListConfigScreen() {
+    val context = LocalContext.current
     var isRootAvailable by remember { mutableStateOf(false) }
     var appListConfig by remember { mutableStateOf<AppListConfig?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showAddGameDialog by remember { mutableStateOf(false) }
+    var showShareDialog by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showBatchDeleteDialog by remember { mutableStateOf(false) }
     var selectedGame by remember { mutableStateOf<GameConfig?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
@@ -196,11 +216,74 @@ fun AppListConfigScreen() {
                         IconButton(onClick = { isSearching = true }) {
                             Icon(Icons.Default.Search, contentDescription = "搜索")
                         }
-                        IconButton(onClick = { loadConfig() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "刷新")
-                        }
-                        IconButton(onClick = { saveConfig() }) {
-                            Icon(Icons.Default.Check, contentDescription = "保存")
+                        
+                        // 更多操作菜单
+                        var showMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("导入配置") },
+                                    onClick = {
+                                        showImportDialog = true
+                                        showMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Add, contentDescription = null)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("批量分享") },
+                                    onClick = {
+                                        if (appListConfig?.games?.isNotEmpty() == true) {
+                                            showShareDialog = true
+                                        }
+                                        showMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Share, contentDescription = null)
+                                    },
+                                    enabled = appListConfig?.games?.isNotEmpty() == true
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("批量删除") },
+                                    onClick = {
+                                        if (appListConfig?.games?.isNotEmpty() == true) {
+                                            showBatchDeleteDialog = true
+                                        }
+                                        showMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Delete, contentDescription = null)
+                                    },
+                                    enabled = appListConfig?.games?.isNotEmpty() == true
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("刷新") },
+                                    onClick = {
+                                        loadConfig()
+                                        showMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Refresh, contentDescription = null)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("保存") },
+                                    onClick = {
+                                        saveConfig()
+                                        showMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Check, contentDescription = null)
+                                    }
+                                )
+                            }
                         }
                     }
                 )
@@ -478,6 +561,13 @@ fun AppListConfigScreen() {
                                         onEditClick = {
                                             selectedGame = game
                                             showEditDialog = true
+                                        },
+                                        onShareClick = {
+                                            ShareUtils.shareGameConfig(context, game)
+                                        },
+                                        onDeleteClick = {
+                                            selectedGame = game
+                                            showDeleteDialog = true
                                         }
                                     )
                                 }
@@ -487,6 +577,62 @@ fun AppListConfigScreen() {
                 }
             }
         }
+    }
+    
+    // 删除确认对话框
+    if (showDeleteDialog && selectedGame != null) {
+        DeleteConfirmationDialog(
+            gameName = selectedGame!!.name,
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = {
+                appListConfig = appListConfig?.copy(
+                    games = appListConfig!!.games.filter { it.packageName != selectedGame!!.packageName }
+                )
+                saveConfig()
+                showDeleteDialog = false
+                selectedGame = null
+            }
+        )
+    }
+    
+    // 批量删除对话框
+    if (showBatchDeleteDialog && appListConfig != null) {
+        BatchDeleteDialog(
+            games = appListConfig!!.games,
+            onDismiss = { showBatchDeleteDialog = false },
+            onConfirm = { gamesToDelete ->
+                val packageNamesToDelete = gamesToDelete.map { it.packageName }.toSet()
+                appListConfig = appListConfig?.copy(
+                    games = appListConfig!!.games.filter { !packageNamesToDelete.contains(it.packageName) }
+                )
+                saveConfig()
+                showBatchDeleteDialog = false
+            }
+        )
+    }
+    
+    // 分享对话框
+    if (showShareDialog && appListConfig != null) {
+        ShareDialog(
+            games = appListConfig!!.games,
+            onDismiss = { showShareDialog = false }
+        )
+    }
+    
+    // 导入对话框
+    if (showImportDialog) {
+        ImportDialog(
+            onDismiss = { showImportDialog = false },
+            onImport = { importedGames ->
+                val (newConfig, overwrittenGames) = ImportUtils.mergeWithExistingConfig(
+                    appListConfig, 
+                    importedGames
+                )
+                appListConfig = newConfig
+                saveConfig()
+                showImportDialog = false
+            }
+        )
     }
     
     // 编辑对话框
@@ -527,8 +673,12 @@ fun AppListConfigScreen() {
 fun GameConfigCard(
     game: GameConfig,
     searchQuery: String = "",
-    onEditClick: () -> Unit
+    onEditClick: () -> Unit,
+    onShareClick: () -> Unit = {},
+    onDeleteClick: () -> Unit = {}
 ) {
+    var isExpanded by remember { mutableStateOf(false) }
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -542,6 +692,7 @@ fun GameConfigCard(
         Column(
             modifier = Modifier.padding(20.dp)
         ) {
+            // 游戏信息和操作按钮区域
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -609,86 +760,157 @@ fun GameConfigCard(
                         Spacer(modifier = Modifier.width(12.dp))
                     }
                     
-                    Button(
-                        onClick = onEditClick,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier.height(40.dp)
-                    ) {
-                        Text(
-                            "编辑",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
+                    Row {
+                        IconButton(
+                            onClick = onDeleteClick,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "删除",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        
+                        IconButton(
+                            onClick = onShareClick,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Share,
+                                contentDescription = "分享",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        Button(
+                            onClick = onEditClick,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.height(40.dp)
+                        ) {
+                            Text(
+                                "编辑",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 线程配置标题
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Card(
-                    modifier = Modifier.size(6.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    ),
-                    shape = RoundedCornerShape(3.dp)
-                ) {}
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "线程配置",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            
             Spacer(modifier = Modifier.height(12.dp))
             
-            // 线程配置列表
-            game.threadConfigs.forEach { threadConfig ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 3.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(10.dp)
+            // 线程配置折叠区域
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Card(
+                        modifier = Modifier.size(6.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ),
+                        shape = RoundedCornerShape(3.dp)
+                    ) {}
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "线程配置",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        ),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = threadConfig.threadName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = "${game.threadConfigs.size} 项",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             fontWeight = FontWeight.Medium
                         )
-                        
+                    }
+                }
+                
+                IconButton(
+                    onClick = { isExpanded = !isExpanded },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (isExpanded) "收起" else "展开",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
+            // 动画展开的线程配置列表
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                Column {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // 线程配置列表
+                    game.threadConfigs.forEach { threadConfig ->
                         Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             ),
-                            shape = RoundedCornerShape(6.dp)
+                            shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text(
-                                text = "CPU: ${threadConfig.cpuCores}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                fontWeight = FontWeight.Medium
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = threadConfig.threadName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                                    ),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = "CPU: ${threadConfig.cpuCores}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
                         }
                     }
                 }
