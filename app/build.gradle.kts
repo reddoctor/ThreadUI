@@ -13,7 +13,7 @@ android {
         minSdk = 35
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -22,6 +22,7 @@ android {
         debug {
             isDebuggable = true
             applicationIdSuffix = ".debug"
+            setProperty("archivesBaseName", "ThreadUI-${defaultConfig.versionName}")
         }
         release {
             isMinifyEnabled = false
@@ -29,6 +30,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            setProperty("archivesBaseName", "ThreadUI-${defaultConfig.versionName}")
         }
     }
 
