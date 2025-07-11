@@ -288,6 +288,66 @@ fun ImportDialog(
 }
 
 @Composable
+fun SecurityWarningCard(
+    warning: String,
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "安全警告",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Text(
+                text = warning,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("取消导入")
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun ImportFileSelectContent(
     onSelectFile: () -> Unit
 ) {
@@ -397,6 +457,15 @@ fun ImportPreviewContent(
         
         Spacer(modifier = Modifier.height(16.dp))
         
+        // 安全警告（如果检测到危险内容）
+        if (result.hasFormatScript && result.formatScriptWarning != null) {
+            SecurityWarningCard(
+                warning = result.formatScriptWarning!!,
+                onDismiss = onCancel
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+        
         Text(
             text = "将要导入的游戏配置：",
             style = MaterialTheme.typography.titleMedium,
@@ -466,7 +535,10 @@ fun ImportPreviewContent(
                 Text("取消")
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = onConfirm) {
+            Button(
+                onClick = onConfirm,
+                enabled = !result.hasFormatScript || result.formatScriptWarning == null
+            ) {
                 Icon(
                     Icons.Default.CheckCircle,
                     contentDescription = null,
