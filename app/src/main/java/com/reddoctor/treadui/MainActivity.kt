@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
@@ -44,6 +45,7 @@ import com.reddoctor.treadui.data.AppListConfig
 import com.reddoctor.treadui.data.AppInfo
 import com.reddoctor.treadui.data.GameConfig
 import com.reddoctor.treadui.data.ThreadConfig
+import com.reddoctor.treadui.ui.components.AboutDialog
 import com.reddoctor.treadui.ui.components.AddGameDialog
 import com.reddoctor.treadui.ui.components.AppSelectorDialog
 import com.reddoctor.treadui.ui.components.BatchDeleteDialog
@@ -85,6 +87,7 @@ fun AppListConfigScreen() {
     var showImportDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
     var selectedGame by remember { mutableStateOf<GameConfig?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
@@ -283,6 +286,16 @@ fun AppListConfigScreen() {
                                     },
                                     leadingIcon = {
                                         Icon(Icons.Default.Check, contentDescription = null)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("关于") },
+                                    onClick = {
+                                        showAboutDialog = true
+                                        showMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Info, contentDescription = null)
                                     }
                                 )
                             }
@@ -667,6 +680,13 @@ fun AppListConfigScreen() {
                 saveConfig()
                 showAddGameDialog = false
             }
+        )
+    }
+    
+    // 关于对话框
+    if (showAboutDialog) {
+        AboutDialog(
+            onDismiss = { showAboutDialog = false }
         )
     }
 }
