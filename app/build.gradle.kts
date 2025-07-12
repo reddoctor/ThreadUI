@@ -5,15 +5,15 @@ plugins {
 }
 
 android {
-    namespace = "com.reddoctor.treadui"
+    namespace = "com.reddoctor.threadui"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.reddoctor.treadui"
-        minSdk = 35
+        applicationId = "com.reddoctor.threadui"
+        minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.1"
+        versionCode = 8
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -45,6 +45,7 @@ android {
         compose = true
         buildConfig = true
     }
+    buildToolsVersion = "36.0.0"
 }
 
 dependencies {

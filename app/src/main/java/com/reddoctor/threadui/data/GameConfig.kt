@@ -1,9 +1,12 @@
-package com.reddoctor.treadui.data
+package com.reddoctor.threadui.data
+
+import android.icu.text.Transliterator
 
 data class GameConfig(
     val name: String,
     val packageName: String,
-    val threadConfigs: List<ThreadConfig>
+    val threadConfigs: List<ThreadConfig>,
+    val firstLetter: String = getFirstLetter(name) // 自动计算首字母
 )
 
 data class ThreadConfig(
@@ -26,6 +29,12 @@ data class AppListConfig(
                     trimmedLine.startsWith("#") -> {
                         // 新游戏开始
                         currentGameName = trimmedLine.substring(1).trim()
+                        // 去除首尾引号（如果存在）
+                        if (currentGameName.startsWith("\"") && currentGameName.endsWith("\"") && currentGameName.length > 1) {
+                            currentGameName = currentGameName.substring(1, currentGameName.length - 1)
+                        } else if (currentGameName.startsWith("'") && currentGameName.endsWith("'") && currentGameName.length > 1) {
+                            currentGameName = currentGameName.substring(1, currentGameName.length - 1)
+                        }
                     }
                     trimmedLine.isNotEmpty() && trimmedLine.contains("=") -> {
                         val parts = trimmedLine.split("=")
@@ -105,7 +114,34 @@ data class AppListConfig(
             }
             
             for ((originalGameName, gameList) in gamesByOriginalName) {
-                builder.append("#$originalGameName\n")
+                // 智能处理游戏名称引号 - 修复引号重复问题
+                val formattedGameName = when {
+                    // 如果游戏名包含空格、特殊字符（但不包括单纯的引号），则需要引号包围
+                    originalGameName.contains(" ") || 
+                    originalGameName.contains("#") || 
+                    originalGameName.contains("=") ||
+                    originalGameName.contains("{") ||
+                    originalGameName.contains("}") -> {
+                        // 清理名称，移除可能存在的外层引号
+                        val cleanName = originalGameName.trim().let { name ->
+                            when {
+                                // 移除完整的外层双引号
+                                name.startsWith("\"") && name.endsWith("\"") && name.length > 1 -> {
+                                    name.substring(1, name.length - 1)
+                                }
+                                // 移除完整的外层单引号
+                                name.startsWith("'") && name.endsWith("'") && name.length > 1 -> {
+                                    name.substring(1, name.length - 1)
+                                }
+                                else -> name
+                            }
+                        }
+                        "\"$cleanName\"" // 添加双引号包围清理后的名称
+                    }
+                    // 如果名称只包含引号但没有其他特殊字符，直接使用不加外层引号
+                    else -> originalGameName
+                }
+                builder.append("#$formattedGameName\n")
                 for (game in gameList) {
                     for (threadConfig in game.threadConfigs) {
                         if (threadConfig.threadName == "主进程") {
@@ -119,5 +155,40 @@ data class AppListConfig(
             }
             return builder.toString()
         }
+    }
+}
+
+// 通用的中文转拼音首字母函数
+fun getFirstLetter(name: String): String {
+    if (name.isEmpty()) return "#"
+    
+    val firstChar = name.first()
+    
+    // 英文字母直接返回大写
+    if (firstChar.isLetter() && firstChar.code < 128) {
+        return firstChar.uppercase()
+    }
+    
+    // 数字和特殊字符返回#
+    if (!firstChar.isLetter()) {
+        return "#"
+    }
+    
+    // 中文字符使用ICU Transliterator转换为拼音
+    return try {
+        val transliterator = Transliterator.getInstance("Han-Latin")
+        val pinyin = transliterator.transliterate(firstChar.toString())
+        
+        // 提取拼音的首字母，去除音调和特殊字符
+        val cleanPinyin = pinyin.replace(Regex("[^a-zA-Z]"), "")
+        
+        if (cleanPinyin.isNotEmpty() && cleanPinyin.first().isLetter()) {
+            cleanPinyin.first().uppercase()
+        } else {
+            "#"
+        }
+    } catch (e: Exception) {
+        // 如果转换失败，返回#
+        "#"
     }
 }

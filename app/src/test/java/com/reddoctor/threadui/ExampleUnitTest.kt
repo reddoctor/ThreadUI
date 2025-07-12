@@ -1,4 +1,4 @@
-package com.reddoctor.treadui
+package com.reddoctor.threadui
 
 import org.junit.Test
 

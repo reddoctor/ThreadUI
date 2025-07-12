@@ -1,6 +1,5 @@
-package com.reddoctor.treadui.ui.components
+package com.reddoctor.threadui.ui.components
 
-import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,17 +17,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.reddoctor.treadui.data.GameConfig
-import com.reddoctor.treadui.utils.ImportUtils
-import com.reddoctor.treadui.utils.ShareUtils
-import java.text.SimpleDateFormat
-import java.util.*
+import com.reddoctor.threadui.data.GameConfig
+import com.reddoctor.threadui.utils.ImportUtils
+import com.reddoctor.threadui.utils.ShareUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

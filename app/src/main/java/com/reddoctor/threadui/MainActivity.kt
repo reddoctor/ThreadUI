@@ -1,4 +1,4 @@
-package com.reddoctor.treadui
+package com.reddoctor.threadui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -7,11 +7,24 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -40,23 +53,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.reddoctor.treadui.data.AppListConfig
-import com.reddoctor.treadui.data.AppInfo
-import com.reddoctor.treadui.data.GameConfig
-import com.reddoctor.treadui.data.ThreadConfig
-import com.reddoctor.treadui.ui.components.AboutDialog
-import com.reddoctor.treadui.ui.components.AddGameDialog
-import com.reddoctor.treadui.ui.components.AppSelectorDialog
-import com.reddoctor.treadui.ui.components.BatchDeleteDialog
-import com.reddoctor.treadui.ui.components.DeleteConfirmationDialog
-import com.reddoctor.treadui.ui.components.GameEditDialog
-import com.reddoctor.treadui.ui.components.ImportDialog
-import com.reddoctor.treadui.ui.components.ShareDialog
-import com.reddoctor.treadui.ui.theme.TreadUITheme
-import com.reddoctor.treadui.utils.ImportUtils
-import com.reddoctor.treadui.utils.RootUtils
-import com.reddoctor.treadui.utils.ShareUtils
+import com.reddoctor.threadui.data.AppListConfig
+import com.reddoctor.threadui.data.GameConfig
+import com.reddoctor.threadui.data.ThreadConfig
+import com.reddoctor.threadui.ui.components.AboutDialog
+import com.reddoctor.threadui.ui.components.AddGameDialog
+import com.reddoctor.threadui.ui.components.BatchDeleteDialog
+import com.reddoctor.threadui.ui.components.DeleteConfirmationDialog
+import com.reddoctor.threadui.ui.components.GameEditDialog
+import com.reddoctor.threadui.ui.components.ImportDialog
+import com.reddoctor.threadui.ui.components.ShareDialog
+import com.reddoctor.threadui.ui.theme.TreadUITheme
+import com.reddoctor.threadui.utils.ImportUtils
+import com.reddoctor.threadui.utils.RootUtils
+import com.reddoctor.threadui.utils.ShareUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -93,12 +103,37 @@ fun AppListConfigScreen() {
     var isSearching by remember { mutableStateOf(false) }
     var isModuleInstalled by remember { mutableStateOf(true) }
     
+    // 悬浮滚动条状态
+    var showFloatingScrollbar by remember { mutableStateOf(false) }
+    var isDraggingScrollbar by remember { mutableStateOf(false) }
+    var currentLetter by remember { mutableStateOf("") }
+    
     val scope = rememberCoroutineScope()
     val configPath = "/data/adb/modules/AppOpt/applist.conf"
+    val listState = rememberLazyListState()
     
-    // 过滤游戏列表
+    // 监听滚动状态，显示/隐藏悬浮滚动条
+    val isScrolling by remember {
+        derivedStateOf {
+            listState.isScrollInProgress
+        }
+    }
+    
+    LaunchedEffect(isScrolling, isDraggingScrollbar) {
+        if (isScrolling || isDraggingScrollbar) {
+            showFloatingScrollbar = true
+        } else {
+            // 停止滚动后延迟隐藏
+            delay(2000)
+            if (!isDraggingScrollbar) {
+                showFloatingScrollbar = false
+            }
+        }
+    }
+    
+    // 过滤和排序游戏列表
     val filteredGames = remember(appListConfig, searchQuery) {
-        if (searchQuery.isBlank()) {
+        val games = if (searchQuery.isBlank()) {
             appListConfig?.games ?: emptyList()
         } else {
             appListConfig?.games?.filter { game ->
@@ -106,6 +141,33 @@ fun AppListConfigScreen() {
                 game.packageName.contains(searchQuery, ignoreCase = true)
             } ?: emptyList()
         }
+        // 按首字母排序，使用GameConfig中的firstLetter字段
+        games.sortedWith(compareBy<GameConfig> { 
+            when(it.firstLetter) {
+                "#" -> "ZZ" // # 排在最后
+                else -> it.firstLetter
+            }
+        }.thenBy { it.name }) // 相同首字母按游戏名称排序
+    }
+    
+    // 生成字母索引列表
+    val alphabetIndexes = remember(filteredGames) {
+        val indexes = mutableMapOf<String, Int>()
+        filteredGames.forEachIndexed { index, game ->
+            val key = game.firstLetter
+            if (!indexes.containsKey(key)) {
+                indexes[key] = index
+            }
+        }
+        // 按A-Z排序，#在最后
+        val sortedKeys = indexes.keys.sortedWith { a, b ->
+            when {
+                a == "#" && b != "#" -> 1
+                a != "#" && b == "#" -> -1
+                else -> a.compareTo(b)
+            }
+        }
+        sortedKeys.associateWith { indexes[it] ?: 0 }
     }
     
     // 检查root权限和模块安装状态
@@ -564,26 +626,48 @@ fun AppListConfigScreen() {
                             }
                         } else {
                             // 游戏列表
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                items(filteredGames) { game ->
-                                    GameConfigCard(
-                                        game = game,
-                                        searchQuery = searchQuery,
-                                        onEditClick = {
-                                            selectedGame = game
-                                            showEditDialog = true
-                                        },
-                                        onShareClick = {
-                                            ShareUtils.shareGameConfig(context, game)
-                                        },
-                                        onDeleteClick = {
-                                            selectedGame = game
-                                            showDeleteDialog = true
-                                        }
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(filteredGames) { game ->
+                                        GameConfigCard(
+                                            game = game,
+                                            searchQuery = searchQuery,
+                                            onEditClick = {
+                                                selectedGame = game
+                                                showEditDialog = true
+                                            },
+                                            onShareClick = {
+                                                ShareUtils.shareGameConfig(context, game)
+                                            },
+                                            onDeleteClick = {
+                                                selectedGame = game
+                                                showDeleteDialog = true
+                                            }
+                                        )
+                                    }
+                                }
+                                
+                                // 悬浮滚动条和字母指示器
+                                FloatingScrollbar(
+                                    alphabetIndexes = alphabetIndexes,
+                                    listState = listState,
+                                    visible = showFloatingScrollbar,
+                                    onDragStart = { isDraggingScrollbar = true },
+                                    onDragEnd = { isDraggingScrollbar = false },
+                                    onLetterChanged = { letter -> currentLetter = letter },
+                                    modifier = Modifier.align(Alignment.CenterEnd)
+                                )
+                                
+                                // 字母指示器
+                                if (isDraggingScrollbar && currentLetter.isNotEmpty()) {
+                                    LetterIndicator(
+                                        letter = currentLetter,
+                                        modifier = Modifier.align(Alignment.Center)
                                     )
                                 }
                             }
@@ -700,19 +784,20 @@ fun GameConfigCard(
     onDeleteClick: () -> Unit = {}
 ) {
     var isExpanded by remember { mutableStateOf(false) }
+    var isGameNameExpanded by remember { mutableStateOf(false) }
     
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            .padding(vertical = 3.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
             // 游戏信息和操作按钮区域
             Row(
@@ -723,38 +808,46 @@ fun GameConfigCard(
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    // 游戏名称 - 支持搜索高亮
+                    // 游戏名称 - 支持搜索高亮和点击展开
+                    val displayName = if (isGameNameExpanded || game.name.length <= 5) {
+                        game.name
+                    } else {
+                        game.name.take(5) + "..."
+                    }
+                    
                     if (searchQuery.isNotEmpty() && game.name.contains(searchQuery, ignoreCase = true)) {
                         HighlightedText(
-                            text = game.name,
+                            text = displayName,
                             searchQuery = searchQuery,
-                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = if (game.name.length > 5) Modifier.clickable { isGameNameExpanded = !isGameNameExpanded } else Modifier,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     } else {
                         Text(
-                            text = game.name,
-                            style = MaterialTheme.typography.headlineSmall,
+                            text = displayName,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = if (game.name.length > 5) Modifier.clickable { isGameNameExpanded = !isGameNameExpanded } else Modifier
                         )
                     }
                     
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     
                     // 包名 - 支持搜索高亮
                     if (searchQuery.isNotEmpty() && game.packageName.contains(searchQuery, ignoreCase = true)) {
                         HighlightedText(
                             text = game.packageName,
                             searchQuery = searchQuery,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
                         Text(
                             text = game.packageName,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -769,56 +862,57 @@ fun GameConfigCard(
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.primaryContainer
                             ),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
                                 text = "渠道服",
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 fontWeight = FontWeight.Medium
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                     }
                     
                     Row {
                         IconButton(
                             onClick = onDeleteClick,
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = "删除",
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
                         
                         IconButton(
                             onClick = onShareClick,
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 Icons.Default.Share,
                                 contentDescription = "分享",
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                         
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         
                         Button(
                             onClick = onEditClick,
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary
                             ),
-                            modifier = Modifier.height(40.dp)
+                            modifier = Modifier.height(32.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp)
                         ) {
                             Text(
                                 "编辑",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -826,7 +920,7 @@ fun GameConfigCard(
                 }
             }
             
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             
             // 线程配置折叠区域
             Row(
@@ -849,22 +943,22 @@ fun GameConfigCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "线程配置",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             text = "${game.threadConfigs.size} 项",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -872,12 +966,12 @@ fun GameConfigCard(
                 
                 IconButton(
                     onClick = { isExpanded = !isExpanded },
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
                         if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (isExpanded) "收起" else "展开",
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -1306,6 +1400,155 @@ fun ModuleInstallationRequiredCard(
                     fontWeight = FontWeight.Medium
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun FloatingScrollbar(
+    alphabetIndexes: Map<String, Int>,
+    listState: LazyListState,
+    visible: Boolean,
+    onDragStart: () -> Unit,
+    onDragEnd: () -> Unit,
+    onLetterChanged: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scope = rememberCoroutineScope()
+    val alphabetKeys = alphabetIndexes.keys.toList()
+    
+    if (!visible || alphabetKeys.isEmpty()) return
+    
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = modifier.zIndex(1f)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(40.dp)
+                .padding(vertical = 32.dp, horizontal = 8.dp)
+        ) {
+            // 蓝色滚动块 - 移除轨道背景
+            Canvas(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(24.dp)
+                    .align(Alignment.Center)
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                onDragStart()
+                                // 处理初始点击位置
+                                val totalHeight = size.height.toFloat()
+                                val currentY = (offset.y / totalHeight).coerceIn(0f, 1f)
+                                val letterIndex = (currentY * alphabetKeys.size).toInt()
+                                    .coerceIn(0, alphabetKeys.size - 1)
+                                
+                                val letter = alphabetKeys[letterIndex]
+                                onLetterChanged(letter)
+                                
+                                scope.launch {
+                                    val index = alphabetIndexes[letter] ?: 0
+                                    listState.animateScrollToItem(index)
+                                }
+                            },
+                            onDragEnd = {
+                                onDragEnd()
+                            }
+                        ) { change, _ ->
+                            // 计算当前拖拽位置对应的字母
+                            val totalHeight = size.height.toFloat()
+                            val currentY = (change.position.y / totalHeight).coerceIn(0f, 1f)
+                            val letterIndex = (currentY * alphabetKeys.size).toInt()
+                                .coerceIn(0, alphabetKeys.size - 1)
+                            
+                            val letter = alphabetKeys[letterIndex]
+                            onLetterChanged(letter)
+                            
+                            // 滚动到对应位置
+                            scope.launch {
+                                val index = alphabetIndexes[letter] ?: 0
+                                listState.animateScrollToItem(index)
+                            }
+                        }
+                    }
+            ) {
+                val trackHeight = size.height
+                val thumbHeight = 40.dp.toPx()
+                
+                // 计算当前滚动位置
+                val firstVisibleItem = listState.firstVisibleItemIndex
+                val totalItems = listState.layoutInfo.totalItemsCount
+                val scrollProgress = if (totalItems > 0) {
+                    firstVisibleItem.toFloat() / totalItems.coerceAtLeast(1)
+                } else 0f
+                
+                val thumbY = (trackHeight - thumbHeight) * scrollProgress
+                
+                // 绘制带箭头的滚动块
+                drawRoundRect(
+                    color = androidx.compose.ui.graphics.Color(0xFF2196F3),
+                    topLeft = Offset(0f, thumbY),
+                    size = androidx.compose.ui.geometry.Size(size.width, thumbHeight),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx())
+                )
+                
+                // 绘制上箭头
+                val arrowSize = 8.dp.toPx()
+                val centerX = size.width / 2f
+                val upArrowY = thumbY + 10.dp.toPx()
+                drawPath(
+                    path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(centerX, upArrowY)
+                        lineTo(centerX - arrowSize / 2, upArrowY + arrowSize / 2)
+                        lineTo(centerX + arrowSize / 2, upArrowY + arrowSize / 2)
+                        close()
+                    },
+                    color = androidx.compose.ui.graphics.Color.White
+                )
+                
+                // 绘制下箭头
+                val downArrowY = thumbY + thumbHeight - 10.dp.toPx()
+                drawPath(
+                    path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(centerX, downArrowY)
+                        lineTo(centerX - arrowSize / 2, downArrowY - arrowSize / 2)
+                        lineTo(centerX + arrowSize / 2, downArrowY - arrowSize / 2)
+                        close()
+                    },
+                    color = androidx.compose.ui.graphics.Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun LetterIndicator(
+    letter: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.size(80.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        shape = RoundedCornerShape(40.dp)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = letter,
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

@@ -1,11 +1,11 @@
-package com.reddoctor.treadui.utils
+package com.reddoctor.threadui.utils
 
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
-import com.reddoctor.treadui.data.GameConfig
-import com.reddoctor.treadui.data.ShareConfig
+import com.reddoctor.threadui.data.GameConfig
+import com.reddoctor.threadui.data.ShareConfig
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*

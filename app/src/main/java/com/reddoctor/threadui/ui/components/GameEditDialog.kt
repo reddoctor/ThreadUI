@@ -1,9 +1,8 @@
-package com.reddoctor.treadui.ui.components
+package com.reddoctor.threadui.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBox
@@ -12,12 +11,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.reddoctor.treadui.data.AppInfo
-import com.reddoctor.treadui.data.GameConfig
-import com.reddoctor.treadui.data.ThreadConfig
+import com.reddoctor.threadui.data.GameConfig
+import com.reddoctor.threadui.data.ThreadConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,7 +48,9 @@ fun GameEditDialog(
                 // 游戏名称
                 OutlinedTextField(
                     value = editedGame.name,
-                    onValueChange = { editedGame = editedGame.copy(name = it) },
+                    onValueChange = { newName ->
+                        editedGame = editedGame.copy(name = newName)
+                    },
                     label = { Text("游戏名称") },
                     modifier = Modifier.fillMaxWidth()
                 )

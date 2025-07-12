@@ -1,9 +1,9 @@
-package com.reddoctor.treadui.utils
+package com.reddoctor.threadui.utils
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import com.reddoctor.treadui.data.AppInfo
+import com.reddoctor.threadui.data.AppInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

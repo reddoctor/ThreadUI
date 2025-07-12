@@ -37,7 +37,7 @@
         
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.reddoctor.treadui.fileprovider"
+            android:authorities="com.reddoctor.threadui.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

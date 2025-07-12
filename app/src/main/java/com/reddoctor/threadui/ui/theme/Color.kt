@@ -1,4 +1,4 @@
-package com.reddoctor.treadui.ui.theme
+package com.reddoctor.threadui.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

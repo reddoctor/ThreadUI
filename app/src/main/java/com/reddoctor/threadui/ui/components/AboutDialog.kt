@@ -1,5 +1,8 @@
-package com.reddoctor.treadui.ui.components
+package com.reddoctor.threadui.ui.components
 
+import android.content.Intent
+import androidx.core.net.toUri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,9 +19,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.reddoctor.treadui.BuildConfig
+import com.reddoctor.threadui.BuildConfig
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutDialog(
     onDismiss: () -> Unit
@@ -99,8 +101,8 @@ fun AboutDialog(
                         InfoRow("版本代码", BuildConfig.VERSION_CODE.toString())
                         InfoRow("应用ID", BuildConfig.APPLICATION_ID)
                         InfoRow("构建类型", if (BuildConfig.DEBUG) "调试版" else "正式版")
-                        InfoRow("编译SDK", "Android 14+ (API 35)")
-                        InfoRow("目标SDK", "Android 14+ (API 36)")
+                        InfoRow("编译SDK", "Android 16+ (API 36)")
+                        InfoRow("支持版本", "Android 10+ (API 29)")
                     }
                 }
                 
@@ -157,8 +159,7 @@ fun AboutDialog(
                             "🎮 游戏配置的可视化编辑",
                             "🔍 智能搜索和过滤功能",
                             "📤 配置导出和分享",
-                            "📥 配置导入和批量操作", 
-                            "🛡️ 格机脚本安全检测",
+                            "📥 配置导入和批量操作",
                             "📋 从已安装应用选择配置",
                             "🗂️ 配置信息折叠展示"
                         )
@@ -204,7 +205,6 @@ fun AboutDialog(
                         InfoRow("UI框架", "Jetpack Compose")
                         InfoRow("设计系统", "Material 3")
                         InfoRow("架构模式", "MVVM + Compose")
-                        InfoRow("最低Android版本", "Android 14 (API 35)")
                     }
                 }
                 
@@ -247,19 +247,17 @@ fun AboutDialog(
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        
-                        Text(
-                            text = "专注于 Android 性能优化工具开发",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        
+
                         Spacer(modifier = Modifier.height(12.dp))
                         
                         // 项目地址
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val intent = Intent(Intent.ACTION_VIEW, "https://github.com/reddoctor/ThreadUI".toUri())
+                                    context.startActivity(intent)
+                                },
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                             ),
@@ -270,7 +268,7 @@ fun AboutDialog(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    text = "🔗 项目地址",
+                                    text = "🔗 项目地址 (点击访问)",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer

@@ -1,6 +1,6 @@
 # ThreadUI - 游戏线程配置管理器
 
-![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Android%2014%2B-green.svg)
 ![License](https://img.shields.io/badge/license-Study%20Only-orange.svg)
 

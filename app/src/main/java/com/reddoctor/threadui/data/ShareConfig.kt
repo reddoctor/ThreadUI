@@ -1,4 +1,4 @@
-package com.reddoctor.treadui.data
+package com.reddoctor.threadui.data
 
 import org.json.JSONArray
 import org.json.JSONObject

@@ -1,4 +1,4 @@
-package com.reddoctor.treadui.data
+package com.reddoctor.threadui.data
 
 import android.graphics.drawable.Drawable
 

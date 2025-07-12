@@ -1,6 +1,4 @@
-package com.reddoctor.treadui.utils
-
-import java.io.IOException
+package com.reddoctor.threadui.utils
 
 object RootUtils {
     fun isRootAvailable(): Boolean {
@@ -49,9 +47,14 @@ object RootUtils {
     fun writeFileAsRoot(filePath: String, content: String): Result<Unit> {
         return try {
             val tempFile = "/data/local/tmp/applist_temp.conf"
-            // 先写入临时文件，使用 cat 和 heredoc 来处理多行内容
-            val escapedContent = content.replace("'", "'\"'\"'")
-            val writeResult = executeRootCommand("cat > '$tempFile' << 'EOF'\n$escapedContent\nEOF")
+            // 使用base64编码来避免引号转义问题
+            val encodedContent = android.util.Base64.encodeToString(
+                content.toByteArray(Charsets.UTF_8), 
+                android.util.Base64.NO_WRAP
+            )
+            
+            // 写入base64编码的内容，然后解码
+            val writeResult = executeRootCommand("echo '$encodedContent' | base64 -d > '$tempFile'")
             if (writeResult.isFailure) {
                 return Result.failure(writeResult.exceptionOrNull()!!)
             }

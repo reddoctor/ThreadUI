@@ -1,4 +1,4 @@
-package com.reddoctor.treadui.utils
+package com.reddoctor.threadui.utils
 
 import android.app.Activity
 import android.content.Context
