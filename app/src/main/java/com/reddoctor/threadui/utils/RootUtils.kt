@@ -7,6 +7,7 @@ object RootUtils {
             process.waitFor()
             process.exitValue() == 0
         } catch (e: Exception) {
+            GlobalExceptionHandler.logException("RootUtils", "检查Root权限失败", e)
             false
         }
     }
@@ -36,6 +37,7 @@ object RootUtils {
                 Result.failure(Exception("Command failed: $error"))
             }
         } catch (e: Exception) {
+            GlobalExceptionHandler.logException("RootUtils", "执行Root命令失败: $command", e)
             Result.failure(e)
         }
     }
@@ -70,6 +72,7 @@ object RootUtils {
             
             Result.success(Unit)
         } catch (e: Exception) {
+            GlobalExceptionHandler.logException("RootUtils", "写入Root文件失败: $filePath", e)
             Result.failure(e)
         }
     }
@@ -88,7 +91,27 @@ object RootUtils {
         return result.getOrNull()?.trim() == "exists"
     }
     
+    @Deprecated("Use checkModuleByConfigPath() instead for dynamic path support")
     fun checkAppOptModuleExists(): Boolean {
         return directoryExistsAsRoot("/data/adb/modules/AppOpt")
+    }
+    
+    fun checkConfigFileExists(configPath: String): Boolean {
+        return fileExistsAsRoot(configPath)
+    }
+    
+    fun checkModuleByConfigPath(configPath: String): Boolean {
+        // 首先检查配置文件是否存在
+        if (fileExistsAsRoot(configPath)) {
+            return true
+        }
+        
+        // 如果配置文件不存在，检查对应的模块目录是否存在
+        if (configPath.contains("/data/adb/modules/")) {
+            val modulePath = configPath.substringBeforeLast("/")
+            return directoryExistsAsRoot(modulePath)
+        }
+        
+        return false
     }
 }

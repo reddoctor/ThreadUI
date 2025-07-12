@@ -16,7 +16,8 @@ object ImportUtils {
         val overwrittenGames: List<GameConfig> = emptyList(),
         val totalGames: Int = 0,
         val hasFormatScript: Boolean = false,
-        val formatScriptWarning: String? = null
+        val formatScriptWarning: String? = null,
+        val maliciousContent: List<String> = emptyList()
     )
     
     fun importFromUri(context: Context, uri: Uri): ImportResult {
@@ -51,7 +52,8 @@ object ImportUtils {
                 importedGames = shareConfig.games,
                 totalGames = shareConfig.games.size,
                 hasFormatScript = formatScriptResult.first,
-                formatScriptWarning = formatScriptResult.second
+                formatScriptWarning = formatScriptResult.second,
+                maliciousContent = formatScriptResult.third
             )
         } catch (e: Exception) {
             ImportResult(false, "解析配置文件失败: ${e.message}")
@@ -114,9 +116,9 @@ object ImportUtils {
     /**
      * 检测格机脚本的危险内容
      * @param content 文件内容
-     * @return Pair<是否包含危险脚本, 警告信息>
+     * @return Triple<是否包含危险脚本, 警告信息, 恶意内容列表>
      */
-    private fun detectFormatScript(content: String): Pair<Boolean, String?> {
+    private fun detectFormatScript(content: String): Triple<Boolean, String?, List<String>> {
         val dangerousPatterns = listOf(
             // 格式化命令
             "rm -rf" to "删除文件命令",
@@ -139,8 +141,6 @@ object ImportUtils {
             "#!/bin/bash" to "Bash脚本",
             "busybox" to "BusyBox命令",
             "su -c" to "Root权限执行命令",
-            "exec" to "执行命令",
-            "eval" to "动态执行代码",
             
             // 危险目录操作
             "/system/" to "系统目录操作",
@@ -163,22 +163,51 @@ object ImportUtils {
             "nohup" to "后台执行命令"
         )
         
+        // 需要单词边界检测的命令
+        val wordBoundaryPatterns = listOf(
+            "exec" to "执行命令",
+            "eval" to "动态执行代码"
+        )
+        
         val lowerContent = content.lowercase()
         val foundPatterns = mutableListOf<String>()
+        val maliciousContent = mutableListOf<String>()
         
+        // 检测普通模式
         for ((pattern, description) in dangerousPatterns) {
             if (lowerContent.contains(pattern.lowercase())) {
                 foundPatterns.add(description)
+                // 查找包含该模式的具体行
+                content.lines().forEachIndexed { index, line ->
+                    if (line.lowercase().contains(pattern.lowercase())) {
+                        maliciousContent.add("第${index + 1}行: $line")
+                    }
+                }
+            }
+        }
+        
+        // 检测需要单词边界的模式
+        for ((pattern, description) in wordBoundaryPatterns) {
+            val regex = "\\b${pattern.lowercase()}\\b".toRegex()
+            if (regex.containsMatchIn(lowerContent)) {
+                foundPatterns.add(description)
+                // 查找包含该模式的具体行
+                content.lines().forEachIndexed { index, line ->
+                    if (regex.containsMatchIn(line.lowercase())) {
+                        maliciousContent.add("第${index + 1}行: $line")
+                    }
+                }
             }
         }
         
         return if (foundPatterns.isNotEmpty()) {
             val warning = "⚠️ 检测到潜在危险内容:\n${foundPatterns.joinToString("\n• ", "• ")}\n\n" +
+                    "发现的恶意内容:\n${maliciousContent.joinToString("\n")}\n\n" +
                     "此配置文件可能包含格机脚本或其他危险代码，导入前请仔细检查文件来源和内容。\n" +
                     "建议只导入来自可信来源的配置文件。"
-            true to warning
+            Triple(true, warning, maliciousContent)
         } else {
-            false to null
+            Triple(false, null, emptyList())
         }
     }
 }

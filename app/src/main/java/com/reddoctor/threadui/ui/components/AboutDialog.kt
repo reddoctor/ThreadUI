@@ -20,12 +20,28 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.reddoctor.threadui.BuildConfig
+import com.reddoctor.threadui.utils.ErrorLogger
+import com.reddoctor.threadui.utils.ShareUtils
+import com.reddoctor.threadui.utils.GlobalExceptionHandler
+import kotlinx.coroutines.launch
 
 @Composable
 fun AboutDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var clickCount by remember { mutableIntStateOf(0) }
+    
+    // 重置点击计数的计时器
+    LaunchedEffect(clickCount) {
+        if (clickCount > 0) {
+            kotlinx.coroutines.delay(2000) // 2秒后重置
+            if (clickCount < 5) {
+                clickCount = 0
+            }
+        }
+    }
     
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -81,7 +97,18 @@ fun AboutDialog(
                 
                 // 版本信息区域
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            clickCount++
+                            if (clickCount >= 5) {
+                                scope.launch(GlobalExceptionHandler.createCoroutineExceptionHandler("LogShare")) {
+                                    val logContent = ErrorLogger.getLogContent(context)
+                                    ShareUtils.shareLogFile(context, logContent)
+                                    clickCount = 0 // 重置计数
+                                }
+                            }
+                        },
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     )
@@ -103,6 +130,17 @@ fun AboutDialog(
                         InfoRow("构建类型", if (BuildConfig.DEBUG) "调试版" else "正式版")
                         InfoRow("编译SDK", "Android 16+ (API 36)")
                         InfoRow("支持版本", "Android 10+ (API 29)")
+                        
+                        // 显示点击进度提示
+                        if (clickCount > 0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "继续点击获取日志 ($clickCount/5)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
                 
@@ -280,6 +318,47 @@ fun AboutDialog(
                                     color = MaterialTheme.colorScheme.primary,
                                     textAlign = TextAlign.Center,
                                     fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // QQ群链接
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val intent = Intent(Intent.ACTION_VIEW, "https://qun.qq.com/universal-share/share?ac=1&authKey=XHRBwZurAyNfmutE%2F8KIgyLKuUn%2FFq7Z5QAvP4Aa9BeRWDHt5LTmO5%2FLAiVXbPHb&busi_data=eyJncm91cENvZGUiOiI5NzU5MDU4NzQiLCJ0b2tlbiI6IitRVVZhUXJKY1NobzR6NVF0djJmTHhmUXcwZTBzVmswUzFOMzR6WUUvSGRXelBlUlVnZEg5bzg2Q0pjTHloc0MiLCJ1aW4iOiIxNjU5NTM2OTQ5In0%3D&data=bBqLpyb9fxTDgc2aSyz7r-pVBMS2FVBP59_YPF7kp4FzdkGOdRbUGCCe2Flin93koN9hnlG2328Cy8vYLvPo-Q&svctype=4&tempid=h5_group_info".toUri())
+                                    context.startActivity(intent)
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "💬 QQ群 (点击加群)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "975905874",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
                         }

@@ -1,5 +1,7 @@
 package com.reddoctor.threadui
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,6 +15,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.geometry.Offset
@@ -25,6 +28,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -37,6 +42,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -66,7 +72,10 @@ import com.reddoctor.threadui.ui.components.ShareDialog
 import com.reddoctor.threadui.ui.theme.TreadUITheme
 import com.reddoctor.threadui.utils.ImportUtils
 import com.reddoctor.threadui.utils.RootUtils
+import com.reddoctor.threadui.utils.ConfigManager
+import com.reddoctor.threadui.ui.components.SettingsDialog
 import com.reddoctor.threadui.utils.ShareUtils
+import com.reddoctor.threadui.utils.GlobalExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -98,6 +107,7 @@ fun AppListConfigScreen() {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
     var selectedGame by remember { mutableStateOf<GameConfig?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
@@ -109,7 +119,7 @@ fun AppListConfigScreen() {
     var currentLetter by remember { mutableStateOf("") }
     
     val scope = rememberCoroutineScope()
-    val configPath = "/data/adb/modules/AppOpt/applist.conf"
+    var configPath by remember { mutableStateOf(ConfigManager.getConfigPath(context)) }
     val listState = rememberLazyListState()
     
     // 监听滚动状态，显示/隐藏悬浮滚动条
@@ -172,14 +182,14 @@ fun AppListConfigScreen() {
     
     // 检查root权限和模块安装状态
     LaunchedEffect(Unit) {
-        scope.launch {
+        scope.launch(GlobalExceptionHandler.createCoroutineExceptionHandler("RootCheck")) {
             isRootAvailable = withContext(Dispatchers.IO) {
                 RootUtils.isRootAvailable()
             }
             
             if (isRootAvailable) {
                 isModuleInstalled = withContext(Dispatchers.IO) {
-                    RootUtils.checkAppOptModuleExists()
+                    RootUtils.checkModuleByConfigPath(configPath)
                 }
             }
         }
@@ -187,53 +197,49 @@ fun AppListConfigScreen() {
     
     // 加载配置文件
     fun loadConfig() {
-        scope.launch {
+        scope.launch(GlobalExceptionHandler.createCoroutineExceptionHandler("ConfigLoad")) {
             isLoading = true
             errorMessage = null
             
-            try {
-                val result = withContext(Dispatchers.IO) {
-                    RootUtils.readFileAsRoot(configPath)
-                }
-                
-                if (result.isSuccess) {
-                    val content = result.getOrNull() ?: ""
-                    appListConfig = AppListConfig.parseFromContent(content)
-                } else {
-                    errorMessage = "读取配置文件失败: ${result.exceptionOrNull()?.message}"
-                }
-            } catch (e: Exception) {
-                errorMessage = "加载配置时发生错误: ${e.message}"
-            } finally {
-                isLoading = false
+            val result = withContext(Dispatchers.IO) {
+                RootUtils.readFileAsRoot(configPath)
             }
+            
+            if (result.isSuccess) {
+                val content = result.getOrNull() ?: ""
+                appListConfig = AppListConfig.parseFromContent(content)
+            } else {
+                val error = "读取配置文件失败: ${result.exceptionOrNull()?.message}"
+                errorMessage = error
+                GlobalExceptionHandler.logException("ConfigLoad", error, result.exceptionOrNull())
+            }
+            
+            isLoading = false
         }
     }
     
     // 保存配置文件
     fun saveConfig() {
         appListConfig?.let { config ->
-            scope.launch {
+            scope.launch(GlobalExceptionHandler.createCoroutineExceptionHandler("ConfigSave")) {
                 isLoading = true
                 errorMessage = null
                 
-                try {
-                    val configString = AppListConfig.toConfigString(config)
-                    val result = withContext(Dispatchers.IO) {
-                        RootUtils.writeFileAsRoot(configPath, configString)
-                    }
-                    
-                    if (result.isFailure) {
-                        errorMessage = "保存配置文件失败: ${result.exceptionOrNull()?.message}"
-                    } else {
-                        // 重新加载配置以验证保存是否成功
-                        loadConfig()
-                    }
-                } catch (e: Exception) {
-                    errorMessage = "保存配置时发生错误: ${e.message}"
-                } finally {
-                    isLoading = false
+                val configString = AppListConfig.toConfigString(config)
+                val result = withContext(Dispatchers.IO) {
+                    RootUtils.writeFileAsRoot(configPath, configString)
                 }
+                
+                if (result.isFailure) {
+                    val error = "保存配置文件失败: ${result.exceptionOrNull()?.message}"
+                    errorMessage = error
+                    GlobalExceptionHandler.logException("ConfigSave", error, result.exceptionOrNull())
+                } else {
+                    // 重新加载配置以验证保存是否成功
+                    loadConfig()
+                }
+                
+                isLoading = false
             }
         }
     }
@@ -294,62 +300,77 @@ fun AppListConfigScreen() {
                                 expanded = showMenu,
                                 onDismissRequest = { showMenu = false }
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("导入配置") },
-                                    onClick = {
-                                        showImportDialog = true
-                                        showMenu = false
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Add, contentDescription = null)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("批量分享") },
-                                    onClick = {
-                                        if (appListConfig?.games?.isNotEmpty() == true) {
-                                            showShareDialog = true
+                                // 只有在有Root权限且模块已安装时才显示完整菜单
+                                if (isRootAvailable && isModuleInstalled && !isLoading) {
+                                    DropdownMenuItem(
+                                        text = { Text("导入配置") },
+                                        onClick = {
+                                            showImportDialog = true
+                                            showMenu = false
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Add, contentDescription = null)
                                         }
-                                        showMenu = false
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Share, contentDescription = null)
-                                    },
-                                    enabled = appListConfig?.games?.isNotEmpty() == true
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("批量删除") },
-                                    onClick = {
-                                        if (appListConfig?.games?.isNotEmpty() == true) {
-                                            showBatchDeleteDialog = true
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("批量分享") },
+                                        onClick = {
+                                            if (appListConfig?.games?.isNotEmpty() == true) {
+                                                showShareDialog = true
+                                            }
+                                            showMenu = false
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Share, contentDescription = null)
+                                        },
+                                        enabled = appListConfig?.games?.isNotEmpty() == true
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("批量删除") },
+                                        onClick = {
+                                            if (appListConfig?.games?.isNotEmpty() == true) {
+                                                showBatchDeleteDialog = true
+                                            }
+                                            showMenu = false
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Delete, contentDescription = null)
+                                        },
+                                        enabled = appListConfig?.games?.isNotEmpty() == true
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("刷新") },
+                                        onClick = {
+                                            loadConfig()
+                                            showMenu = false
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Refresh, contentDescription = null)
                                         }
-                                        showMenu = false
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Delete, contentDescription = null)
-                                    },
-                                    enabled = appListConfig?.games?.isNotEmpty() == true
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("刷新") },
-                                    onClick = {
-                                        loadConfig()
-                                        showMenu = false
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Refresh, contentDescription = null)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("保存") },
-                                    onClick = {
-                                        saveConfig()
-                                        showMenu = false
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Check, contentDescription = null)
-                                    }
-                                )
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("保存") },
+                                        onClick = {
+                                            saveConfig()
+                                            showMenu = false
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Check, contentDescription = null)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("设置") },
+                                        onClick = {
+                                            showSettingsDialog = true
+                                            showMenu = false
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Settings, contentDescription = null)
+                                        }
+                                    )
+                                }
+                                
+                                // 关于选项始终显示
                                 DropdownMenuItem(
                                     text = { Text("关于") },
                                     onClick = {
@@ -374,17 +395,46 @@ fun AppListConfigScreen() {
         ) {
             when {
                 !isRootAvailable -> {
-                    RootPermissionRequiredCard()
+                    RootPermissionRequiredCard(
+                        onRefreshClick = {
+                            scope.launch(GlobalExceptionHandler.createCoroutineExceptionHandler("RefreshRoot")) {
+                                isRootAvailable = withContext(Dispatchers.IO) {
+                                    RootUtils.isRootAvailable()
+                                }
+                                if (isRootAvailable) {
+                                    // 检查模块状态
+                                    isModuleInstalled = withContext(Dispatchers.IO) {
+                                        RootUtils.checkModuleByConfigPath(configPath)
+                                    }
+                                    if (isModuleInstalled) {
+                                        loadConfig()
+                                    }
+                                }
+                            }
+                        }
+                    )
                 }
                 
                 !isModuleInstalled -> {
                     ModuleInstallationRequiredCard(
+                        configPath = configPath,
                         onRefreshClick = {
-                            scope.launch {
+                            scope.launch(GlobalExceptionHandler.createCoroutineExceptionHandler("RefreshModule")) {
                                 isModuleInstalled = withContext(Dispatchers.IO) {
-                                    RootUtils.checkAppOptModuleExists()
+                                    RootUtils.checkModuleByConfigPath(configPath)
+                                }
+                                if (isModuleInstalled) {
+                                    loadConfig()
                                 }
                             }
+                        },
+                        onSettingsClick = {
+                            showSettingsDialog = true
+                        },
+                        onInstallClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://appopt.suto.top/#download"))
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
                         }
                     )
                 }
@@ -524,7 +574,7 @@ fun AppListConfigScreen() {
                                     .padding(horizontal = 16.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(getQuickSearchTags(appListConfig!!.games)) { tag ->
+                                items(getQuickSearchTags(appListConfig?.games ?: emptyList())) { tag ->
                                     QuickSearchChip(
                                         text = tag,
                                         onClick = {
@@ -771,6 +821,30 @@ fun AppListConfigScreen() {
     if (showAboutDialog) {
         AboutDialog(
             onDismiss = { showAboutDialog = false }
+        )
+    }
+    
+    // 设置对话框
+    if (showSettingsDialog) {
+        SettingsDialog(
+            currentPath = configPath,
+            onDismiss = { showSettingsDialog = false },
+            onPathChanged = { newPath ->
+                scope.launch(GlobalExceptionHandler.createCoroutineExceptionHandler("PathChange")) {
+                    // 首先清空配置，避免状态冲突
+                    appListConfig = null
+                    errorMessage = null
+                    
+                    // 然后更新路径配置
+                    ConfigManager.setConfigPath(context, newPath)
+                    configPath = newPath
+                    
+                    // 最后检查模块状态
+                    isModuleInstalled = withContext(Dispatchers.IO) {
+                        RootUtils.checkModuleByConfigPath(newPath)
+                    }
+                }
+            }
         )
     }
 }
@@ -1215,7 +1289,9 @@ fun QuickSearchChip(
 }
 
 @Composable
-fun RootPermissionRequiredCard() {
+fun RootPermissionRequiredCard(
+    onRefreshClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1266,14 +1342,38 @@ fun RootPermissionRequiredCard() {
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // 刷新权限按钮
+            Button(
+                onClick = onRefreshClick,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .height(56.dp)
+                    .fillMaxWidth(0.6f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text(
+                    text = "刷新权限",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
 
 @Composable
 fun ModuleInstallationRequiredCard(
-    onRefreshClick: () -> Unit
+    configPath: String,
+    onRefreshClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onInstallClick: () -> Unit
 ) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1285,7 +1385,10 @@ fun ModuleInstallationRequiredCard(
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(
-            modifier = Modifier.padding(32.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Card(
@@ -1307,25 +1410,41 @@ fun ModuleInstallationRequiredCard(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 "需要安装线程优化模块",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "未找到 AppOpt 模块，请先安装线程优化模块",
-                style = MaterialTheme.typography.bodyLarge,
+                "未找到 ${ConfigManager.getModuleName(configPath)} 模块",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
+            Text(
+                "配置路径: $configPath",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (ConfigManager.isUsingDefaultPath(context)) {
+                    MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+                fontWeight = if (ConfigManager.isUsingDefaultPath(context)) {
+                    FontWeight.Normal
+                } else {
+                    FontWeight.Medium
+                }
+            )
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1346,11 +1465,10 @@ fun ModuleInstallationRequiredCard(
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     val steps = listOf(
-                        "1. 确保设备已获取 Root 权限",
-                        "2. 安装 Magisk 框架",
-                        "3. 下载 AppOpt 线程优化模块",
-                        "4. 在 Magisk 中激活模块",
-                        "5. 重启设备后点击下方刷新按钮"
+                        "1. 获取 Root 权限",
+                        "2. 安装 Magisk 框架", 
+                        "3. 下载线程优化模块",
+                        "4. 激活模块并重启"
                     )
                     
                     steps.forEach { step ->
@@ -1379,26 +1497,78 @@ fun ModuleInstallationRequiredCard(
                 }
             }
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
-            Button(
-                onClick = onRefreshClick,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .height(56.dp)
-                    .fillMaxWidth(0.6f)
+            // 操作按钮区域
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = "刷新",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "检查模块状态",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // 自定义路径按钮
+                    OutlinedButton(
+                        onClick = onSettingsClick,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .height(56.dp)
+                            .weight(1f),
+                        contentPadding = PaddingValues(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(
+                            text = "自定义路径",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    
+                    // 下载模块按钮
+                    Button(
+                        onClick = onInstallClick,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .height(56.dp)
+                            .weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary
+                        ),
+                        contentPadding = PaddingValues(8.dp)
+                    ) {
+                        Text(
+                            text = "下载模块",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                
+                // 检查状态按钮
+                Button(
+                    onClick = onRefreshClick,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .height(56.dp)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(16.dp)
+                ) {
+                    Text(
+                        text = "检查模块状态",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }
