@@ -12,7 +12,7 @@ import java.util.*
 
 object ShareUtils {
     
-    private const val FILE_PROVIDER_AUTHORITY = "com.reddoctor.treadui.fileprovider"
+    private const val FILE_PROVIDER_AUTHORITY = "com.reddoctor.threadui.fileprovider"
     
     fun shareGameConfig(context: Context, game: GameConfig) {
         val shareConfig = ShareConfig.fromSingleGame(game)
