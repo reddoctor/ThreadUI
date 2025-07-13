@@ -23,6 +23,7 @@ import com.reddoctor.threadui.BuildConfig
 import com.reddoctor.threadui.utils.ErrorLogger
 import com.reddoctor.threadui.utils.ShareUtils
 import com.reddoctor.threadui.utils.GlobalExceptionHandler
+import com.reddoctor.threadui.utils.CpuCoreValidator
 import kotlinx.coroutines.launch
 
 @Composable
@@ -248,6 +249,48 @@ fun AboutDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
+                // 设备信息区域
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "设备信息",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        val cpuInfo = remember { CpuCoreValidator.getCpuInfo() }
+                        
+                        InfoRow("CPU架构", cpuInfo.architecture)
+                        InfoRow("CPU型号", cpuInfo.cpuModel)
+                        InfoRow("CPU核心数", "${cpuInfo.totalCores}核")
+                        
+                        // 显示大中小核心信息
+                        val coreTypes = buildList {
+                            if (cpuInfo.superCores > 0) add("${cpuInfo.superCores}超大核")
+                            if (cpuInfo.bigCores > 0) add("${cpuInfo.bigCores}大核")
+                            if (cpuInfo.midCores > 0) add("${cpuInfo.midCores}中核")
+                            if (cpuInfo.littleCores > 0) add("${cpuInfo.littleCores}小核")
+                        }
+                        
+                        if (coreTypes.isNotEmpty()) {
+                            InfoRow("核心类型", coreTypes.joinToString(" + "))
+                        }
+                        
+                        InfoRow("可用核心", "0-${cpuInfo.totalCores - 1}")
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
                 // 开发者信息
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -389,17 +432,17 @@ private fun InfoRow(
     label: String,
     value: String
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(vertical = 4.dp)
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,

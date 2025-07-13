@@ -25,11 +25,7 @@ fun SettingsDialog(
     var isValidPath by remember { mutableStateOf(true) }
     
     fun validatePath(path: String): Boolean {
-        return path.isNotBlank() && 
-               path.startsWith("/") && 
-               path.endsWith(".conf") &&
-               !path.contains("..") &&
-               path.length < 256
+        return ConfigManager.validateConfigPath(path)
     }
     
     Dialog(onDismissRequest = onDismiss) {
@@ -69,11 +65,11 @@ fun SettingsDialog(
                     supportingText = {
                         if (!isValidPath) {
                             Text(
-                                text = "路径格式无效。请输入以'/'开头，'.conf'结尾的完整路径",
+                                text = "路径格式无效。请输入以'/'开头，'.conf'或'.prop'结尾的完整路径",
                                 color = MaterialTheme.colorScheme.error
                             )
                         } else {
-                            Text("输入配置文件的完整路径，支持自定义模块目录")
+                            Text("输入配置文件的完整路径，支持 .conf 和 .prop 格式")
                         }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -97,6 +93,14 @@ fun SettingsDialog(
                         )
                         Text(
                             text = "• ${ConfigManager.getDefaultPath()}",
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            text = "• /data/adb/modules/AppOpt/applist.prop",
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            text = "• /data/adb/modules/YourModule/applist.conf",
                             fontSize = 11.sp
                         )
                     }

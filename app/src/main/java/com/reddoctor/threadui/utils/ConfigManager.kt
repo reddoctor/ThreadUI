@@ -48,10 +48,26 @@ object ConfigManager {
     fun validateConfigPath(path: String): Boolean {
         return path.isNotBlank() && 
                path.startsWith("/") && 
-               path.endsWith(".conf") &&
+               (path.endsWith(".conf") || path.endsWith(".prop")) &&
                !path.contains("..") &&
                path.length < 256 &&
                path.split("/").all { it.isNotEmpty() || it == path.split("/").first() }
+    }
+    
+    fun getConfigFileType(path: String): String {
+        return when {
+            path.endsWith(".conf") -> "conf"
+            path.endsWith(".prop") -> "prop"
+            else -> "unknown"
+        }
+    }
+    
+    fun isConfigFile(path: String): Boolean {
+        return path.endsWith(".conf") || path.endsWith(".prop")
+    }
+    
+    fun getSupportedExtensions(): List<String> {
+        return listOf(".conf", ".prop")
     }
     
     private fun getPreferences(context: Context): SharedPreferences {

@@ -48,7 +48,14 @@ object RootUtils {
     
     fun writeFileAsRoot(filePath: String, content: String): Result<Unit> {
         return try {
-            val tempFile = "/data/local/tmp/applist_temp.conf"
+            // 根据文件扩展名生成临时文件名
+            val fileExtension = when {
+                filePath.endsWith(".conf") -> ".conf"
+                filePath.endsWith(".prop") -> ".prop"
+                else -> ".tmp"
+            }
+            val tempFile = "/data/local/tmp/applist_temp$fileExtension"
+            
             // 使用base64编码来避免引号转义问题
             val encodedContent = android.util.Base64.encodeToString(
                 content.toByteArray(Charsets.UTF_8), 

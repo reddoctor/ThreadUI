@@ -27,8 +27,18 @@ data class AppListConfig(
                 val trimmedLine = line.trim()
                 when {
                     trimmedLine.startsWith("#") -> {
-                        // 新游戏开始
-                        currentGameName = trimmedLine.substring(1).trim()
+                        // 新游戏开始 - 移除所有前导#字符
+                        currentGameName = trimmedLine.dropWhile { it == '#' }.trim()
+                        // 去除首尾引号（如果存在）
+                        if (currentGameName.startsWith("\"") && currentGameName.endsWith("\"") && currentGameName.length > 1) {
+                            currentGameName = currentGameName.substring(1, currentGameName.length - 1)
+                        } else if (currentGameName.startsWith("'") && currentGameName.endsWith("'") && currentGameName.length > 1) {
+                            currentGameName = currentGameName.substring(1, currentGameName.length - 1)
+                        }
+                    }
+                    trimmedLine.isNotEmpty() && !trimmedLine.contains("=") && !trimmedLine.startsWith("#") -> {
+                        // 不带#前缀的游戏名称行
+                        currentGameName = trimmedLine.trim()
                         // 去除首尾引号（如果存在）
                         if (currentGameName.startsWith("\"") && currentGameName.endsWith("\"") && currentGameName.length > 1) {
                             currentGameName = currentGameName.substring(1, currentGameName.length - 1)

@@ -17,7 +17,8 @@ object ImportUtils {
         val totalGames: Int = 0,
         val hasFormatScript: Boolean = false,
         val formatScriptWarning: String? = null,
-        val maliciousContent: List<String> = emptyList()
+        val maliciousContent: List<String> = emptyList(),
+        val cpuCoreErrors: List<String> = emptyList()
     )
     
     fun importFromUri(context: Context, uri: Uri): ImportResult {
@@ -46,14 +47,42 @@ object ImportUtils {
                 return ImportResult(false, "配置文件中没有找到游戏配置")
             }
             
+            // 校验CPU核心
+            val cpuCoreErrors = mutableListOf<String>()
+            shareConfig.games.forEach { game ->
+                game.threadConfigs.forEach { threadConfig ->
+                    val validation = CpuCoreValidator.validateCpuCores(threadConfig.cpuCores)
+                    if (!validation.isValid) {
+                        cpuCoreErrors.add("${game.name} - ${threadConfig.threadName}: ${validation.message}")
+                    }
+                }
+            }
+            
+            val hasErrors = formatScriptResult.first || cpuCoreErrors.isNotEmpty()
+            val errorMessage = buildString {
+                if (formatScriptResult.first) {
+                    append(formatScriptResult.second)
+                }
+                if (cpuCoreErrors.isNotEmpty()) {
+                    if (isNotEmpty()) append("\n\n")
+                    append("⚠️ CPU核心配置错误:\n")
+                    append(cpuCoreErrors.joinToString("\n• ", "• "))
+                }
+            }
+            
             ImportResult(
-                success = true,
-                message = "成功解析 ${shareConfig.games.size} 个游戏配置",
-                importedGames = shareConfig.games,
+                success = !hasErrors,
+                message = if (hasErrors) {
+                    "配置文件存在问题，请检查后重新导入"
+                } else {
+                    "成功解析 ${shareConfig.games.size} 个游戏配置"
+                },
+                importedGames = if (hasErrors) emptyList() else shareConfig.games,
                 totalGames = shareConfig.games.size,
                 hasFormatScript = formatScriptResult.first,
-                formatScriptWarning = formatScriptResult.second,
-                maliciousContent = formatScriptResult.third
+                formatScriptWarning = if (hasErrors) errorMessage else null,
+                maliciousContent = formatScriptResult.third,
+                cpuCoreErrors = cpuCoreErrors
             )
         } catch (e: Exception) {
             ImportResult(false, "解析配置文件失败: ${e.message}")

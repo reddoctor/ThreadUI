@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -975,19 +976,14 @@ fun GameConfigCard(
                         
                         Spacer(modifier = Modifier.width(4.dp))
                         
-                        Button(
+                        IconButton(
                             onClick = onEditClick,
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            ),
-                            modifier = Modifier.height(32.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            Text(
-                                "编辑",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "编辑",
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
