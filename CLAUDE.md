@@ -10,6 +10,9 @@ ThreadUI is an Android application built with Kotlin and Jetpack Compose that se
 **Min SDK**: 35 (Android 14)
 **Target SDK**: 36
 **Compile SDK**: 36
+**Current Version**: 1.0.3
+**Build Tools**: Gradle 8.11.0
+**Kotlin Version**: 2.0.21
 
 ## Core Functionality
 
@@ -90,13 +93,14 @@ The app includes comprehensive search capabilities:
 - **Instrumented Tests**: `app/src/androidTest/java/com/reddoctor/threadui/`
 
 ### Key Technologies
-- **Jetpack Compose**: Modern declarative UI toolkit
+- **Jetpack Compose**: Modern declarative UI toolkit (2024.09.00)
 - **Material 3**: Design system with dynamic color support
-- **Kotlin**: Primary programming language
+- **Kotlin**: Primary programming language (2.0.21)
 - **AndroidX**: Core Android libraries
 - **Root Access**: System-level file operations using shell commands
 - **Coroutines**: Asynchronous programming with global exception handling
 - **SharedPreferences**: Configuration persistence and settings management
+- **Gradle**: Build system with Kotlin DSL (8.11.0)
 
 ### Data Models
 - **GameConfig**: Represents a game with its package name and thread configurations
@@ -266,6 +270,13 @@ package.name=cpu-cores
 
 ### Dependencies Management
 Dependencies are centralized in `gradle/libs.versions.toml` using Gradle version catalogs. When adding new dependencies, update the version catalog rather than hardcoding versions in build files.
+
+### Key Dependencies
+- **Compose BOM**: 2024.09.00
+- **Activity Compose**: 1.9.2
+- **Material 3**: Included in Compose BOM
+- **Core KTX**: AndroidX core extensions
+- **Lifecycle**: AndroidX lifecycle components
 
 ### Java Version
 The project uses Java 11 for compilation. Ensure `sourceCompatibility` and `targetCompatibility` are set to `JavaVersion.VERSION_11` in build configurations.
