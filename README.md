@@ -235,10 +235,6 @@ cd ThreadUI
 ./gradlew installDebug
 ```
 
-### 输出文件
-- **Debug**: `app/build/outputs/apk/debug/ThreadUI-1.0.3-debug.apk`
-- **Release**: `app/build/outputs/apk/release/ThreadUI-1.0.3-release.apk`
-
 ### 项目结构
 ```
 app/src/main/java/com/reddoctor/threadui/

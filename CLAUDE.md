@@ -10,7 +10,6 @@ ThreadUI is an Android application built with Kotlin and Jetpack Compose that se
 **Min SDK**: 35 (Android 14)
 **Target SDK**: 36
 **Compile SDK**: 36
-**Current Version**: 1.0.3
 **Build Tools**: Gradle 8.11.0
 **Kotlin Version**: 2.0.21
 
