@@ -1,7 +1,7 @@
 # ThreadUI - 游戏线程配置管理器
 
-![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)
-![Platform](https://img.shields.io/badge/platform-Android%2014%2B-green.svg)
+![Version](https://img.shields.io/github/v/release/reddoctor/ThreadUI?style=flat&color=blue)
+![Platform](https://img.shields.io/badge/platform-Android%2010%2B-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ThreadUI 是一个现代化的 Android 应用程序，专为管理 `/data/adb/modules/AppOpt/applist.conf` 游戏优化配置文件而设计。采用 Material 3 设计语言和 Jetpack Compose 技术栈，提供直观友好的用户界面来查看、编辑和管理游戏的 CPU 线程配置。
