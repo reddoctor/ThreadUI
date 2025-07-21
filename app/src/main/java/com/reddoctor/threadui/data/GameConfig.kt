@@ -6,6 +6,7 @@ data class GameConfig(
     val name: String,
     val packageName: String,
     val threadConfigs: List<ThreadConfig>,
+    val enabled: Boolean = true, // 配置是否启用，默认启用
     val firstLetter: String = getFirstLetter(name) // 自动计算首字母
 )
 
@@ -52,17 +53,35 @@ data class AppListConfig(
                             val leftPart = parts[0].trim()
                             val cpuCores = parts[1].trim()
                             
-                            // 解析包名和线程名
+                            // 解析包名和线程名，检查是否有(off)后缀
                             val packageName: String
                             val threadName: String
+                            val isEnabled: Boolean
                             
                             if (leftPart.contains("{") && leftPart.contains("}")) {
-                                packageName = leftPart.substring(0, leftPart.indexOf("{"))
+                                val basePackageName = leftPart.substring(0, leftPart.indexOf("{"))
                                 threadName = leftPart.substring(leftPart.indexOf("{") + 1, leftPart.indexOf("}"))
+                                
+                                // 检查包名是否以(off)开头
+                                if (basePackageName.startsWith("(off)")) {
+                                    packageName = basePackageName.substring(5) // 移除前缀 "(off)"
+                                    isEnabled = false
+                                } else {
+                                    packageName = basePackageName
+                                    isEnabled = true
+                                }
                             } else {
                                 // 主包配置
-                                packageName = leftPart
                                 threadName = "主进程"
+                                
+                                // 检查包名是否以(off)开头
+                                if (leftPart.startsWith("(off)")) {
+                                    packageName = leftPart.substring(5) // 移除前缀 "(off)"
+                                    isEnabled = false
+                                } else {
+                                    packageName = leftPart
+                                    isEnabled = true
+                                }
                             }
                             
                             // 查找是否已存在相同包名的配置
@@ -73,8 +92,11 @@ data class AppListConfig(
                             if (existingGameIndex != -1) {
                                 // 更新现有配置，添加线程配置
                                 val existingGame = games[existingGameIndex]
+                                // 如果新的配置是禁用的，整个游戏配置都设为禁用
+                                val newEnabled = existingGame.enabled && isEnabled
                                 games[existingGameIndex] = existingGame.copy(
-                                    threadConfigs = existingGame.threadConfigs + ThreadConfig(threadName, cpuCores)
+                                    threadConfigs = existingGame.threadConfigs + ThreadConfig(threadName, cpuCores),
+                                    enabled = newEnabled
                                 )
                             } else {
                                 // 创建新配置
@@ -100,7 +122,8 @@ data class AppListConfig(
                                 games.add(GameConfig(
                                     name = displayName,
                                     packageName = packageName,
-                                    threadConfigs = listOf(ThreadConfig(threadName, cpuCores))
+                                    threadConfigs = listOf(ThreadConfig(threadName, cpuCores)),
+                                    enabled = isEnabled
                                 ))
                             }
                         }
@@ -154,10 +177,16 @@ data class AppListConfig(
                 builder.append("#$formattedGameName\n")
                 for (game in gameList) {
                     for (threadConfig in game.threadConfigs) {
-                        if (threadConfig.threadName == "主进程") {
-                            builder.append("${game.packageName}=${threadConfig.cpuCores}\n")
+                        val packageNameWithStatus = if (!game.enabled) {
+                            "(off)${game.packageName}"
                         } else {
-                            builder.append("${game.packageName}{${threadConfig.threadName}}=${threadConfig.cpuCores}\n")
+                            game.packageName
+                        }
+                        
+                        if (threadConfig.threadName == "主进程") {
+                            builder.append("${packageNameWithStatus}=${threadConfig.cpuCores}\n")
+                        } else {
+                            builder.append("${packageNameWithStatus}{${threadConfig.threadName}}=${threadConfig.cpuCores}\n")
                         }
                     }
                 }

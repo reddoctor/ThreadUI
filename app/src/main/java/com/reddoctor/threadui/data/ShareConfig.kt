@@ -41,7 +41,12 @@ data class ShareConfig(
                     )
                 }
                 
-                games.add(GameConfig(name, packageName, threadConfigs))
+                games.add(GameConfig(
+                    name = name,
+                    packageName = packageName,
+                    threadConfigs = threadConfigs,
+                    enabled = gameJson.optBoolean("enabled", true) // 向后兼容，默认启用
+                ))
             }
             
             return ShareConfig(version, exportTime, games)
@@ -58,6 +63,7 @@ data class ShareConfig(
             val gameJson = JSONObject()
             gameJson.put("name", game.name)
             gameJson.put("packageName", game.packageName)
+            gameJson.put("enabled", game.enabled) // 添加enabled字段
             
             val threadConfigsArray = JSONArray()
             game.threadConfigs.forEach { threadConfig ->

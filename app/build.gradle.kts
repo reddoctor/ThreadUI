@@ -12,7 +12,7 @@ android {
         applicationId = "com.reddoctor.threadui"
         minSdk = 29
         targetSdk = 36
-        versionCode = 5
+        versionCode = 8
         versionName = "1.0.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

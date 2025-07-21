@@ -25,7 +25,6 @@ import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -50,7 +49,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
@@ -94,6 +95,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true)
 @Composable
 fun AppListConfigScreen() {
     val context = LocalContext.current
@@ -247,52 +249,16 @@ fun AppListConfigScreen() {
     
     Scaffold(
         topBar = {
-            if (isSearching) {
-                // 搜索模式的TopAppBar
-                TopAppBar(
-                    title = {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("搜索游戏名称或包名...") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                            ),
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { searchQuery = "" }) {
-                                        Icon(Icons.Default.Clear, contentDescription = "清空搜索")
-                                    }
-                                }
-                            }
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { 
-                            isSearching = false
-                            searchQuery = ""
-                        }) {
-                            Icon(Icons.Default.Clear, contentDescription = "退出搜索")
-                        }
+            // 统一使用正常模式的TopAppBar，搜索功能移到内容区域
+            TopAppBar(
+                title = { Text("AppList 配置管理器") },
+                actions = {
+                    IconButton(onClick = { showAddGameDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "新增游戏")
                     }
-                )
-            } else {
-                // 正常模式的TopAppBar
-                TopAppBar(
-                    title = { Text("AppList 配置管理器") },
-                    actions = {
-                        IconButton(onClick = { showAddGameDialog = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "新增游戏")
-                        }
-                        IconButton(onClick = { isSearching = true }) {
-                            Icon(Icons.Default.Search, contentDescription = "搜索")
-                        }
-                        
-                        // 更多操作菜单
-                        var showMenu by remember { mutableStateOf(false) }
+                    
+                    // 更多操作菜单
+                    var showMenu by remember { mutableStateOf(false) }
                         Box {
                             IconButton(onClick = { showMenu = true }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = "更多")
@@ -386,7 +352,6 @@ fun AppListConfigScreen() {
                         }
                     }
                 )
-            }
         }
     ) { innerPadding ->
         Box(
@@ -567,24 +532,44 @@ fun AppListConfigScreen() {
                 
                 else -> {
                     Column {
-                        // 搜索快捷操作栏（仅在正常模式显示）
-                        if (!isSearching && appListConfig?.games?.isNotEmpty() == true) {
-                            LazyRow(
+                        // 搜索框（始终显示在顶部）
+                        if (appListConfig?.games?.isNotEmpty() == true) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { newQuery ->
+                                    searchQuery = newQuery
+                                    isSearching = newQuery.isNotEmpty()
+                                },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                items(getQuickSearchTags(appListConfig?.games ?: emptyList())) { tag ->
-                                    QuickSearchChip(
-                                        text = tag,
-                                        onClick = {
-                                            searchQuery = tag
-                                            isSearching = true
-                                        }
+                                placeholder = { Text("搜索游戏名称或包名...") },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Search,
+                                        contentDescription = "搜索",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                }
-                            }
+                                },
+                                trailingIcon = {
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(
+                                            onClick = {
+                                                searchQuery = ""
+                                                isSearching = false
+                                            }
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Clear,
+                                                contentDescription = "清除搜索",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
                         }
                         
                         // 搜索结果统计
@@ -698,6 +683,27 @@ fun AppListConfigScreen() {
                                             onDeleteClick = {
                                                 selectedGame = game
                                                 showDeleteDialog = true
+                                            },
+                                            onToggleEnabled = { enabled ->
+                                                // 立即更新UI状态，无需等待保存完成
+                                                appListConfig?.let { config ->
+                                                    val updatedGames = config.games.map { g ->
+                                                        if (g.packageName == game.packageName) {
+                                                            g.copy(enabled = enabled)
+                                                        } else {
+                                                            g
+                                                        }
+                                                    }
+                                                    appListConfig = config.copy(games = updatedGames)
+                                                    
+                                                    // 异步保存配置，不阻塞UI
+                                                    scope.launch(GlobalExceptionHandler.createCoroutineExceptionHandler("ToggleEnabled")) {
+                                                        val configString = AppListConfig.toConfigString(appListConfig!!)
+                                                        withContext(Dispatchers.IO) {
+                                                            RootUtils.writeFileAsRoot(configPath, configString)
+                                                        }
+                                                    }
+                                                }
                                             }
                                         )
                                     }
@@ -856,23 +862,31 @@ fun GameConfigCard(
     searchQuery: String = "",
     onEditClick: () -> Unit,
     onShareClick: () -> Unit = {},
-    onDeleteClick: () -> Unit = {}
+    onDeleteClick: () -> Unit = {},
+    onToggleEnabled: (Boolean) -> Unit = {}
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     var isGameNameExpanded by remember { mutableStateOf(false) }
-    
+    var isToggling by remember { mutableStateOf(false) } // 添加切换状态
+    val scope = rememberCoroutineScope() // 添加协程作用域
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = if (game.enabled) 
+                MaterialTheme.colorScheme.surface 
+            else 
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f) // 禁用时使用更暗的背景色
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier
+                .padding(12.dp)
+                .alpha(if (game.enabled) 1.0f else 0.6f) // 将alpha应用到内容上，保持圆角
         ) {
             // 游戏信息和操作按钮区域
             Row(
@@ -884,17 +898,17 @@ fun GameConfigCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     // 游戏名称 - 支持搜索高亮和点击展开
-                    val displayName = if (isGameNameExpanded || game.name.length <= 5) {
+                    val displayName = if (isGameNameExpanded || game.name.length <= 12) {
                         game.name
                     } else {
-                        game.name.take(5) + "..."
+                        game.name.take(12) + "..."
                     }
-                    
+
                     if (searchQuery.isNotEmpty() && game.name.contains(searchQuery, ignoreCase = true)) {
                         HighlightedText(
                             text = displayName,
                             searchQuery = searchQuery,
-                            modifier = if (game.name.length > 5) Modifier.clickable { isGameNameExpanded = !isGameNameExpanded } else Modifier,
+                            modifier = if (game.name.length > 12) Modifier.clickable { isGameNameExpanded = !isGameNameExpanded } else Modifier,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -905,12 +919,12 @@ fun GameConfigCard(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
-                            modifier = if (game.name.length > 5) Modifier.clickable { isGameNameExpanded = !isGameNameExpanded } else Modifier
+                            modifier = if (game.name.length > 12) Modifier.clickable { isGameNameExpanded = !isGameNameExpanded } else Modifier
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.height(2.dp))
-                    
+
                     // 包名 - 支持搜索高亮
                     if (searchQuery.isNotEmpty() && game.packageName.contains(searchQuery, ignoreCase = true)) {
                         HighlightedText(
@@ -927,7 +941,7 @@ fun GameConfigCard(
                         )
                     }
                 }
-                
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -949,49 +963,73 @@ fun GameConfigCard(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    
+
                     Row {
+                        // 启用/禁用开关
+                        Switch(
+                            checked = game.enabled,
+                            onCheckedChange = { enabled ->
+                                isToggling = true
+                                onToggleEnabled(enabled)
+                                // 短暂显示切换状态后重置
+                                scope.launch {
+                                    delay(200)
+                                    isToggling = false
+                                }
+                            },
+                            modifier = Modifier
+                                .scale(0.8f)
+                                .alpha(if (isToggling) 0.7f else 1.0f),
+                            enabled = !isToggling, // 切换时禁用避免重复点击
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        )
+                        
+                        Spacer(modifier = Modifier.width(1.dp))
+                        
                         IconButton(
                             onClick = onDeleteClick,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(30.dp)
                         ) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = "删除",
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(15.dp),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
-                        
+
                         IconButton(
                             onClick = onShareClick,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(30.dp)
                         ) {
                             Icon(
                                 Icons.Default.Share,
                                 contentDescription = "分享",
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                         }
-                        
-                        Spacer(modifier = Modifier.width(4.dp))
-                        
+
                         IconButton(
                             onClick = onEditClick,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(30.dp)
                         ) {
                             Icon(
                                 Icons.Default.Edit,
                                 contentDescription = "编辑",
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                         }
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // 线程配置折叠区域
             Row(
                 modifier = Modifier
@@ -1033,7 +1071,7 @@ fun GameConfigCard(
                         )
                     }
                 }
-                
+
                 IconButton(
                     onClick = { isExpanded = !isExpanded },
                     modifier = Modifier.size(28.dp)
@@ -1046,7 +1084,7 @@ fun GameConfigCard(
                     )
                 }
             }
-            
+
             // 动画展开的线程配置列表
             AnimatedVisibility(
                 visible = isExpanded,
@@ -1055,7 +1093,7 @@ fun GameConfigCard(
             ) {
                 Column {
                     Spacer(modifier = Modifier.height(8.dp))
-                    
+
                     // 线程配置列表
                     game.threadConfigs.forEach { threadConfig ->
                         Card(
@@ -1081,7 +1119,7 @@ fun GameConfigCard(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Medium
                                 )
-                                
+
                                 Card(
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.primaryContainer
@@ -1116,7 +1154,8 @@ fun GameConfigCardPreview() {
                 ThreadConfig("UnityMain", "7"),
                 ThreadConfig("UnityGfxDeviceW", "2-4"),
                 ThreadConfig("主进程", "2-6")
-            )
+            ),
+            enabled = true
         )
         GameConfigCard(game = sampleGame, onEditClick = {})
     }
@@ -1140,24 +1179,6 @@ fun SearchHighlightPreview() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun QuickSearchChipsPreview() {
-    TreadUITheme {
-        LazyRow(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(listOf("腾讯", "网易", "MOBA", "射击")) { tag ->
-                QuickSearchChip(
-                    text = tag,
-                    onClick = { }
-                )
-            }
         }
     }
 }
@@ -1223,65 +1244,6 @@ fun HighlightedText(
         color = color,
         fontWeight = fontWeight
     )
-}
-
-// 获取快捷搜索标签
-fun getQuickSearchTags(games: List<GameConfig>): List<String> {
-    val tags = mutableSetOf<String>()
-
-//    // 添加常见的公司/开发商标签
-//    games.forEach { game ->
-//        when {
-//            game.packageName.contains("tencent") -> tags.add("腾讯")
-//            game.packageName.contains("miHoYo") -> tags.add("米哈游")
-//            game.packageName.contains("netease") -> tags.add("网易")
-//        }
-//    }
-//
-//    // 添加游戏类型标签
-//    if (games.any { it.name.contains("王者") || it.name.contains("MOBA") }) tags.add("MOBA")
-//    if (games.any { it.name.contains("吃鸡") || it.name.contains("和平精英") || it.name.contains("绝地求生") }) tags.add("射击")
-//    if (games.any { it.name.contains("角色扮演") || it.name.contains("RPG") }) tags.add("RPG")
-//
-    return tags.take(5) // 限制最多5个标签
-}
-
-@Composable
-fun QuickSearchChip(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.Search,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                fontWeight = FontWeight.Medium
-            )
-        }
-    }
 }
 
 @Composable

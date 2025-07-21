@@ -67,6 +67,26 @@ fun GameEditDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // 启用状态开关
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "启用配置",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Switch(
+                        checked = editedGame.enabled,
+                        onCheckedChange = { enabled ->
+                            editedGame = editedGame.copy(enabled = enabled)
+                        }
+                    )
+                }
+                
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 // 线程配置标题
@@ -600,7 +620,12 @@ fun AddGameDialog(
                     Button(
                         onClick = { 
                             if (gameName.isNotBlank() && packageName.isNotBlank() && threadConfigs.isNotEmpty()) {
-                                onSave(GameConfig(gameName, packageName, threadConfigs))
+                                onSave(GameConfig(
+                                    name = gameName,
+                                    packageName = packageName,
+                                    threadConfigs = threadConfigs,
+                                    enabled = true // 新添加的游戏默认启用
+                                ))
                             }
                         },
                         enabled = gameName.isNotBlank() && packageName.isNotBlank() && threadConfigs.isNotEmpty()
